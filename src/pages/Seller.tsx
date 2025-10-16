@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Plus, TrendingUp, Eye, Heart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Session } from "@supabase/supabase-js";
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import {
   Dialog,
   DialogContent,
@@ -118,6 +119,12 @@ const Seller = () => {
     ? ((analytics.totalSwipesRight / analytics.totalViews) * 100).toFixed(1)
     : "0";
 
+  const chartData = [
+    { name: "Added to Cart", value: analytics.totalSwipesRight, color: "#10b981" },
+    { name: "Saved for Later", value: analytics.totalSwipesLeft, color: "#a855f7" },
+    { name: "Skipped", value: Math.max(0, analytics.totalViews - analytics.totalSwipesRight - analytics.totalSwipesLeft), color: "#6b7280" },
+  ].filter(item => item.value > 0);
+
   return (
     <div className="min-h-screen bg-background">
       <nav className="flex items-center gap-4 p-4 bg-card/50 backdrop-blur-xl border-b border-white/10">
@@ -165,6 +172,57 @@ const Seller = () => {
             </div>
           </Card>
         </div>
+
+        {analytics.totalViews > 0 && (
+          <Card className="p-6 bg-gradient-card backdrop-blur-xl border-white/10 mb-8">
+            <h2 className="text-xl font-bold mb-4">User Engagement Analytics</h2>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={chartData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-4 text-center text-sm">
+              <div>
+                <p className="text-muted-foreground">Added to Cart</p>
+                <p className="text-2xl font-bold text-green-500">{analytics.totalSwipesRight}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Saved for Later</p>
+                <p className="text-2xl font-bold text-purple-500">{analytics.totalSwipesLeft}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Skipped</p>
+                <p className="text-2xl font-bold text-gray-500">
+                  {Math.max(0, analytics.totalViews - analytics.totalSwipesRight - analytics.totalSwipesLeft)}
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
+
 
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">My Products</h2>
