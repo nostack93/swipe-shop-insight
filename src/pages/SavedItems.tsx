@@ -51,23 +51,37 @@ const SavedItems = () => {
   const fetchSavedItems = async () => {
     const { data, error } = await supabase
       .from("saved_items")
-      .select(`
-        id,
-        product:products (
-          id,
-          name,
-          description,
-          price,
-          image_url
-        )
-      `)
+      .select("*")
       .order("created_at", { ascending: false });
 
     if (error) {
       toast({ title: "Error loading saved items", variant: "destructive" });
       return;
     }
-    setSavedItems(data || []);
+    
+    // Fetch products for saved items
+    if (data && data.length > 0) {
+      const productIds = data.map(item => item.product_id);
+      const { data: products } = await supabase
+        .from("products")
+        .select("*")
+        .in("id", productIds);
+      
+      const itemsWithProducts = data.map(item => ({
+        id: item.id,
+        product: products?.find(p => p.id === item.product_id) || {
+          id: item.product_id,
+          name: "Unknown",
+          description: "",
+          price: 0,
+          image_url: ""
+        }
+      }));
+      
+      setSavedItems(itemsWithProducts);
+    } else {
+      setSavedItems([]);
+    }
   };
 
   const handleRemove = async (savedItemId: string) => {

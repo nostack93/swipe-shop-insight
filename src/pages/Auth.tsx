@@ -25,13 +25,21 @@ const Auth = () => {
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (error) throw error;
+        
+        // Get user role and navigate accordingly
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", data.user.id)
+          .single();
+        
         toast({ title: "Welcome back!" });
-        navigate("/");
+        navigate(profile?.role === "seller" ? "/seller" : "/swipe");
       } else {
         const { error } = await supabase.auth.signUp({
           email,
@@ -43,7 +51,7 @@ const Auth = () => {
         });
         if (error) throw error;
         toast({ title: "Account created successfully!" });
-        navigate("/");
+        navigate(role === "seller" ? "/seller" : "/swipe");
       }
     } catch (error: any) {
       toast({
