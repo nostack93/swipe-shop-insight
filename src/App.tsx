@@ -8,6 +8,7 @@ import Auth from "./pages/Auth";
 import Swipe from "./pages/Swipe";
 import Cart from "./pages/Cart";
 import Seller from "./pages/Seller";
+import SavedItems from "./pages/SavedItems";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,6 +24,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/swipe" element={<Swipe />} />
           <Route path="/cart" element={<Cart />} />
+          <Route path="/saved" element={<SavedItems />} />
           <Route path="/seller" element={<Seller />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

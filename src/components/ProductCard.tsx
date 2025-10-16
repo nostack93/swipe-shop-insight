@@ -8,10 +8,10 @@ interface ProductCardProps {
   description: string;
   price: number;
   imageUrl: string;
-  onSwipe: (direction: "left" | "right") => void;
+  onSwipe: (id: string, direction: "left" | "right") => void;
 }
 
-export const ProductCard = ({ name, description, price, imageUrl, onSwipe }: ProductCardProps) => {
+export const ProductCard = ({ id, name, description, price, imageUrl, onSwipe }: ProductCardProps) => {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
   const opacity = useTransform(x, [-200, -100, 0, 100, 200], [0, 1, 1, 1, 0]);
@@ -19,7 +19,7 @@ export const ProductCard = ({ name, description, price, imageUrl, onSwipe }: Pro
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (Math.abs(info.offset.x) > 100) {
       const direction = info.offset.x > 0 ? "right" : "left";
-      onSwipe(direction);
+      onSwipe(id, direction);
     }
   };
 
