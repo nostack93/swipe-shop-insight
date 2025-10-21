@@ -1,17 +1,3 @@
-## Project info
-
-**URL**: https://lovable.dev/projects/99b4ce8b-ee2c-4be6-bfed-553817d5db8d
-
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
 The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
 Follow these steps:
@@ -53,10 +39,6 @@ This project is built with:
 - React
 - shadcn-ui
 - Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/99b4ce8b-ee2c-4be6-bfed-553817d5db8d) and click on Share -> Publish.
 
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
