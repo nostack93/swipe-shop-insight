@@ -70,6 +70,31 @@ const Cart = () => {
 
   const total = cartItems.reduce((sum, item) => sum + (item.products.price * item.quantity), 0);
 
+  const checkout = async () => {
+    if (!session || cartItems.length === 0) return;
+    try {
+      // Record purchase interactions per item individually; continue on partial failures
+      for (const item of cartItems) {
+        const { error } = await supabase.from("swipe_interactions").insert({
+          user_id: session.user.id,
+          product_id: item.products.id,
+          action: "purchased",
+        });
+        if (error) console.warn("purchase insert failed", error.message);
+      }
+
+      // Clear cart regardless of insert results
+      const { error: clearError } = await supabase.from("cart_items").delete().eq("user_id", session.user.id);
+      if (clearError) console.warn("clear cart failed", clearError.message);
+
+      toast({ title: "Checkout complete! 🎉" });
+      setCartItems([]);
+      navigate("/swipe");
+    } catch (e: any) {
+      toast({ title: "Checkout failed", description: e.message, variant: "destructive" });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <nav className="flex items-center gap-4 p-4 bg-card/50 backdrop-blur-xl border-b border-white/10">
@@ -121,7 +146,7 @@ const Cart = () => {
                 <span className="text-xl font-bold">Total</span>
                 <span className="text-2xl font-bold">${total.toFixed(2)}</span>
               </div>
-              <Button className="w-full bg-gradient-primary hover:opacity-90">
+              <Button className="w-full bg-gradient-primary hover:opacity-90" onClick={checkout}>
                 Checkout
               </Button>
             </Card>

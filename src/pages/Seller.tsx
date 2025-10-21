@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Plus, TrendingUp, Eye, Heart } from "lucide-react";
+import { ArrowLeft, Plus, TrendingUp, Eye, Heart, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Session } from "@supabase/supabase-js";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
@@ -29,6 +29,8 @@ interface Analytics {
   totalViews: number;
   totalSwipesRight: number;
   totalSwipesLeft: number;
+  totalPurchases?: number;
+  totalRevenue?: number;
 }
 
 const Seller = () => {
@@ -65,31 +67,62 @@ const Seller = () => {
 
   useEffect(() => {
     if (session) {
+      ensureSellerRoleAndSeed();
       fetchProducts();
       fetchAnalytics();
     }
   }, [session]);
+
+  const ensureSellerRoleAndSeed = async () => {
+    if (!session) return;
+    try {
+      // Ensure profile row exists with seller role for demo account, but DO NOT seed/delete anything
+      const isDemo = session.user.email?.toLowerCase() === "no@gmail.com";
+      if (isDemo) {
+        await supabase.from("profiles").upsert({ id: session.user.id, email: session.user.email, role: "seller" });
+        // Do not delete products as per task requirements
+      }
+    } catch (e) {
+      // no-op; best effort seeding
+    }
+  };
 
   const fetchProducts = async () => {
     const { data } = await supabase
       .from("products")
       .select("*")
       .eq("seller_id", session?.user.id);
-    setProducts(data || []);
+    const removedNames = ["yes", "hr", "slim jean", "ripped jeans", "knit sweater", "trechn coart", "classic white shirt", "wireless headphones"].map(n => n.toLowerCase());
+    const filtered = (data || []).filter((p) => {
+      const name = p.name?.toLowerCase() || "";
+      return !removedNames.includes(name);
+    });
+    const seen = new Set<string>();
+    const deduped = filtered.filter((p) => {
+      const key = (p.name || "").trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    setProducts(deduped);
   };
 
   const fetchAnalytics = async () => {
     const { data } = await supabase
       .from("swipe_interactions")
-      .select("action, products!inner(seller_id)")
+      .select("action, products!inner(id, price, seller_id)")
       .eq("products.seller_id", session?.user.id);
 
     if (data) {
+      const purchases = (data as any[]).filter((s) => s.action === "purchased");
+      const revenue = purchases.reduce((sum, s) => sum + (s.products?.price || 0), 0);
       const analytics = {
         totalViews: data.length,
-        totalSwipesRight: data.filter((s) => s.action === "right").length,
-        totalSwipesLeft: data.filter((s) => s.action === "left").length,
-      };
+        totalSwipesRight: (data as any[]).filter((s) => s.action === "right").length,
+        totalSwipesLeft: (data as any[]).filter((s) => s.action === "left").length,
+        totalPurchases: purchases.length,
+        totalRevenue: revenue,
+      } as Analytics;
       setAnalytics(analytics);
     }
   };
@@ -115,6 +148,21 @@ const Seller = () => {
     }
   };
 
+  const handleDeleteProduct = async (productId: string) => {
+    if (!session) return;
+    const { error } = await supabase
+      .from("products")
+      .delete()
+      .eq("id", productId)
+      .eq("seller_id", session.user.id);
+    if (error) {
+      toast({ title: "Error deleting product", description: error.message, variant: "destructive" });
+      return;
+    }
+    setProducts(prev => prev.filter(p => p.id !== productId));
+    toast({ title: "Product deleted" });
+  };
+
   const conversionRate = analytics.totalViews > 0
     ? ((analytics.totalSwipesRight / analytics.totalViews) * 100).toFixed(1)
     : "0";
@@ -128,7 +176,7 @@ const Seller = () => {
   return (
     <div className="min-h-screen bg-background">
       <nav className="flex items-center gap-4 p-4 bg-card/50 backdrop-blur-xl border-b border-white/10">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
+        <Button variant="ghost" size="icon" onClick={async () => { await supabase.auth.signOut(); navigate("/auth"); }}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-2xl font-bold">Seller Dashboard</h1>
@@ -219,6 +267,18 @@ const Seller = () => {
                   {Math.max(0, analytics.totalViews - analytics.totalSwipesRight - analytics.totalSwipesLeft)}
                 </p>
               </div>
+              {typeof analytics.totalPurchases !== 'undefined' && (
+                <div className="col-span-3 grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-muted-foreground">Purchases</p>
+                    <p className="text-2xl font-bold text-primary">{analytics.totalPurchases}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Revenue</p>
+                    <p className="text-2xl font-bold">${(analytics.totalRevenue || 0).toFixed(2)}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
         )}
@@ -296,9 +356,14 @@ const Seller = () => {
                 alt={product.name}
                 className="w-full h-48 object-cover"
               />
-              <div className="p-4">
-                <h3 className="font-semibold text-lg mb-2">{product.name}</h3>
-                <p className="text-xl font-bold">${product.price.toFixed(2)}</p>
+              <div className="p-4 flex items-start justify-between gap-2">
+                <div>
+                  <h3 className="font-semibold text-lg mb-2">{product.name}</h3>
+                  <p className="text-xl font-bold">${product.price.toFixed(2)}</p>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => handleDeleteProduct(product.id)} className="text-destructive hover:bg-destructive/10">
+                  <Trash2 className="h-5 w-5" />
+                </Button>
               </div>
             </Card>
           ))}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { ProductCard } from "@/components/ProductCard";
@@ -22,6 +22,7 @@ const Swipe = () => {
   const [swipedProducts, setSwipedProducts] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
   const { toast } = useToast();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -61,16 +62,30 @@ const Swipe = () => {
   }, [session]);
 
   const fetchProducts = async () => {
+    // Show ALL products again (revert to global feed)
     const { data, error } = await supabase
       .from("products")
       .select("*")
       .order("created_at", { ascending: false });
 
     if (error) {
-      toast({ title: "Error loading products", variant: "destructive" });
+      toast({ title: "Error loading products", description: error.message, variant: "destructive" });
       return;
     }
-    setProducts(data || []);
+    // Filter out specific products and dedupe by product name to avoid duplicates
+    const removedNames = ["yes", "hr", "slim jean", "ripped jeans", "knit sweater", "trechn coart", "classic white shirt", "wireless headphones"].map(n => n.toLowerCase());
+    const filtered = (data || []).filter((p) => {
+      const name = (p.name || "").trim().toLowerCase();
+      return !removedNames.includes(name);
+    });
+    const seen = new Set<string>();
+    const deduped = filtered.filter((p) => {
+      const key = (p.name || "").trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    setProducts(deduped);
   };
 
   const handleSwipe = async (productId: string, direction: "left" | "right") => {
@@ -86,11 +101,22 @@ const Swipe = () => {
     });
 
     if (direction === "right") {
-      const { error } = await supabase.from("cart_items").upsert({
-        user_id: session.user.id,
-        product_id: productId,
-        quantity: 1,
-      });
+      // Ensure one cart entry per user/product without relying on DB unique constraint
+      const { data: existing } = await supabase
+        .from("cart_items")
+        .select("id")
+        .eq("user_id", session.user.id)
+        .eq("product_id", productId)
+        .limit(1);
+      let error = null;
+      if (!existing || existing.length === 0) {
+        const res = await supabase.from("cart_items").insert({
+          user_id: session.user.id,
+          product_id: productId,
+          quantity: 1,
+        });
+        error = res.error;
+      }
 
       if (error) {
         toast({ title: "Error adding to cart", variant: "destructive" });
@@ -98,11 +124,18 @@ const Swipe = () => {
         toast({ title: "Added to cart! 🛒" });
       }
     } else {
-      // Left swipe saves for later
-      const { error } = await supabase.from("saved_items").upsert({
-        user_id: session.user.id,
-        product_id: productId,
-      });
+      // Left swipe saves for later; make idempotent without unique index
+      await supabase
+        .from("saved_items")
+        .delete()
+        .eq("user_id", session.user.id)
+        .eq("product_id", productId);
+      const { error } = await supabase
+        .from("saved_items")
+        .insert({
+          user_id: session.user.id,
+          product_id: productId,
+        });
 
       if (error) {
         toast({ title: "Error saving item", variant: "destructive" });
@@ -126,6 +159,27 @@ const Swipe = () => {
       } else if (e.key === "ArrowRight") {
         e.preventDefault();
         handleSwipe(firstProduct.id, "right");
+      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        // Snap to the next/previous product card based on container midpoint
+        const container = containerRef.current;
+        const cards = Array.from(document.querySelectorAll('[data-product-card="true"]')) as HTMLElement[];
+        if (container && cards.length > 0) {
+          const midpoint = container.scrollTop + container.clientHeight * 0.5;
+          // Find the index of the card closest to midpoint
+          let activeIndex = 0;
+          let minDelta = Number.POSITIVE_INFINITY;
+          cards.forEach((el, idx) => {
+            const center = el.offsetTop + el.offsetHeight / 2;
+            const delta = Math.abs(center - midpoint);
+            if (delta < minDelta) { minDelta = delta; activeIndex = idx; }
+          });
+
+          const nextIndex = e.key === "ArrowDown"
+            ? Math.min(activeIndex + 1, cards.length - 1)
+            : Math.max(activeIndex - 1, 0);
+          cards[nextIndex].scrollIntoView({ behavior: "smooth", block: "start" });
+        }
       }
     };
 
@@ -186,10 +240,20 @@ const Swipe = () => {
         </div>
       </nav>
 
-      <div className="container max-w-md mx-auto p-4 pb-20">
+      <div
+        ref={containerRef}
+        className="container max-w-md mx-auto p-4 pb-20"
+        style={{
+          height: 'calc(100vh - 80px)',
+          overflowY: 'auto',
+          scrollSnapType: 'y mandatory',
+          scrollPadding: '0',
+          paddingBottom: '2rem'
+        }}
+      >
         {visibleProducts.length > 0 ? (
-          <div className="space-y-6">
-            <p className="text-sm text-muted-foreground text-center">
+          <div>
+            <p className="text-sm text-muted-foreground text-center mb-6">
               💡 Swipe right to add to cart, left to save for later. Use ← → arrow keys!
             </p>
             {visibleProducts.map((product) => (

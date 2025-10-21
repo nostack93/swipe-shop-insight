@@ -18,6 +18,17 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  const fillDemoSeller = () => {
+    setEmail("no@gmail.com");
+    setPassword("12345678");
+    setIsLogin(true);
+  };
+  const fillDemoUser = () => {
+    setEmail("no1@gmail.com");
+    setPassword("12345678");
+    setIsLogin(true);
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,23 +36,47 @@ const Auth = () => {
 
     try {
       if (isLogin) {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        let { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
+        if (error && error.message?.toLowerCase().includes("invalid")) {
+          // Auto-create demo user if it doesn't exist yet
+          const signup = await supabase.auth.signUp({ email, password });
+          if (signup.error) throw signup.error;
+          ({ data, error } = await supabase.auth.signInWithPassword({ email, password }));
+        }
         if (error) throw error;
-        
-        // Get user role and navigate accordingly
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", data.user.id)
-          .single();
-        
-        toast({ title: "Welcome back!" });
-        navigate(profile?.role === "seller" ? "/seller" : "/swipe");
+
+        // Ensure profile exists with default role and $1000 balance in metadata
+        await supabase.from("profiles").upsert({
+          id: data.user.id,
+          email: email,
+          role: email === "no@gmail.com" ? "seller" : "user",
+        });
+
+        // Store a fake balance in localStorage (client-side only demo)
+        const balanceKey = `balance:${data.user.id}`;
+        if (!localStorage.getItem(balanceKey)) {
+          localStorage.setItem(balanceKey, JSON.stringify({ amount: 1000 }));
+        }
+
+        // Demo seller shortcut
+        if (email === "no@gmail.com") {
+          toast({ title: "Welcome back!" });
+          navigate("/seller");
+        } else {
+          // Get user role and navigate accordingly
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", data.user.id)
+            .single();
+          toast({ title: "Welcome back!" });
+          navigate(profile?.role === "seller" ? "/seller" : "/swipe");
+        }
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -50,6 +85,17 @@ const Auth = () => {
           },
         });
         if (error) throw error;
+        if (data.user) {
+          await supabase.from("profiles").upsert({
+            id: data.user.id,
+            email: email,
+            role,
+          });
+          const balanceKey = `balance:${data.user.id}`;
+          if (!localStorage.getItem(balanceKey)) {
+            localStorage.setItem(balanceKey, JSON.stringify({ amount: 1000 }));
+          }
+        }
         toast({ title: "Account created successfully!" });
         navigate(role === "seller" ? "/seller" : "/swipe");
       }
@@ -135,6 +181,22 @@ const Auth = () => {
               disabled={loading}
             >
               {loading ? "Loading..." : isLogin ? "Sign In" : "Create Account"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-white/10"
+              onClick={fillDemoSeller}
+            >
+              Use demo seller (no@gmail.com / 12345678)
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-white/10"
+              onClick={fillDemoUser}
+            >
+              Use demo user (no1@gmail.com / 12345678)
             </Button>
           </form>
         </Tabs>

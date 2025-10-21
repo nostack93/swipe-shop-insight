@@ -29,9 +29,10 @@ export const ProductCard = ({ id, name, description, price, imageUrl, onSwipe }:
       dragConstraints={{ left: 0, right: 0 }}
       style={{ x, rotate, opacity }}
       onDragEnd={handleDragEnd}
-      className="absolute w-full cursor-grab active:cursor-grabbing"
+      className="w-full cursor-grab active:cursor-grabbing"
+      data-product-card="true"
     >
-      <Card className="relative h-[600px] bg-gradient-card backdrop-blur-xl border-white/10 overflow-hidden shadow-card">
+      <Card className="relative h-[calc(100vh-200px)] bg-gradient-card backdrop-blur-xl border-white/10 overflow-hidden shadow-card touch-pan-y" style={{ scrollSnapAlign: "start", scrollSnapStop: "always" }}>
         <div className="absolute inset-0">
           <img
             src={imageUrl}
@@ -57,9 +58,9 @@ export const ProductCard = ({ id, name, description, price, imageUrl, onSwipe }:
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-6 space-y-2">
-          <h2 className="text-3xl font-bold text-white">{name}</h2>
-          <p className="text-lg text-white/80">{description}</p>
-          <p className="text-2xl font-bold text-white">${price.toFixed(2)}</p>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white">{name}</h2>
+          <p className="text-base sm:text-lg text-white/80 line-clamp-2">{description}</p>
+          <p className="text-xl sm:text-2xl font-bold text-white">${price.toFixed(2)}</p>
         </div>
       </Card>
     </motion.div>
